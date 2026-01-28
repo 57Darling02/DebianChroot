@@ -1,0 +1,50 @@
+name: Build and Release Magisk Module
+
+on:
+  push:
+    paths:
+      - 'module.prop'
+  workflow_dispatch:
+
+jobs:
+  build_and_release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Read module.prop
+        id: prop
+        run: |
+          # Read version and versionCode, removing carriage return characters
+          version=$(grep -E '^version=' module.prop | cut -d'=' -f2 | tr -d '\r')
+          versionCode=$(grep -E '^versionCode=' module.prop | cut -d'=' -f2 | tr -d '\r')
+          
+          echo "VERSION=$version" >> $GITHUB_ENV
+          echo "VERSION_CODE=$versionCode" >> $GITHUB_ENV
+
+      - name: Display Version Info
+        run: |
+          echo "Version: ${{ env.VERSION }}"
+          echo "VersionCode: ${{ env.VERSION_CODE }}"
+
+      - name: Zip Module
+        run: |
+          # Zip all files excluding git and github related files
+          zip -r9 "DebianChroot-${{ env.VERSION }}.zip" . -x ".git*" ".github*" "*.zip"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.VERSION }}
+          name: DebianChroot ${{ env.VERSION }}
+          body: |
+            Automatic release for version ${{ env.VERSION }} (versionCode: ${{ env.VERSION_CODE }}).
+          files: |
+            DebianChroot-${{ env.VERSION }}.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
