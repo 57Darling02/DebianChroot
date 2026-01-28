@@ -1,0 +1,15 @@
+[Unit]
+Description=Test Service for Servicectl Auto-start
+Documentation=用于验证 servicectl 开机自启动是否成功
+After=network.target  # 确保网络就绪后启动（非必需，仅为适配常见启动顺序，可删除）
+
+[Service]
+Type=oneshot  # 单次执行型服务（执行完输出即完成，无需长期后台运行）
+RemainAfterExit=yes  # 即使服务主进程退出，仍标记服务为“运行中”，方便后续 stop/restart 操作
+ExecStart=/bin/echo "1233,这是一个测试，如果显示此内容则说明servicectl开机自启动运行成功"  # 核心输出指令
+ExecStartPost=/bin/echo "test-servicectl 服务启动完成，输出内容已打印"  # 启动后补充提示（非必需，可选删除）
+PIDFile=/var/run/test-servicectl.pid  # 适配 servicectl stop 逻辑（自动生成PID文件，无需手动创建）
+ExecStop=/bin/rm -f /var/run/test-servicectl.pid  # 停止服务时删除PID文件，避免残留
+
+[Install]
+WantedBy=multi-user.target  # 适配多用户模式开机启动（systemd 标准开机启动目标，确保开机能触发）
