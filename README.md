@@ -66,6 +66,46 @@ servicectl start <service>
 servicectl status <service>
 ```
 
+#### Example: Setting up Nginx with Runit
+
+Here is how you can set up Nginx to run automatically with Runit, following the standard convention (`/etc/sv` -> `/etc/service`).
+
+1.  **Install Nginx**:
+    ```bash
+    apt update && apt install nginx
+    ```
+
+2.  **Create the service directory in `/etc/sv`**:
+    ```bash
+    mkdir -p /etc/sv/nginx
+    ```
+
+3.  **Create the run script**:
+    Create a file named `/etc/sv/nginx/run` with the following content:
+    ```bash
+    #!/bin/sh
+    # Nginx must run in foreground for runit to supervise it
+    exec nginx -g 'daemon off;'
+    ```
+
+4.  **Make it executable**:
+    ```bash
+    chmod +x /etc/sv/nginx/run
+    ```
+
+5.  **Enable the service (Symlink to `/etc/service`)**:
+    ```bash
+    ln -s /etc/sv/nginx /etc/service/nginx
+    ```
+
+6.  **Start the service**:
+    Runit will automatically discover and start the new service within a few seconds. You can verify it with:
+    ```bash
+    sv status nginx
+    # or
+    servicectl status nginx
+    ```
+
 ## Build & Release
 
 This project includes a GitHub Actions workflow for automatic releases.
