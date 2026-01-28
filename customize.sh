@@ -1,4 +1,3 @@
-
 SKIPMOUNT=false
 PROPFILE=false
 POSTFSDATA=false
@@ -108,16 +107,3 @@ $BB mkdir -p "$CHROOT_DIR/dev/pts"
 $BB mkdir -p "$CHROOT_DIR/dev/shm"
 
 ui_print "- Rootfs setup completed!"
-
-
-
-
-
-
-
-
-
-# unzip -o "$ZIPFILE" 'manager.sh' -d "$MODPATH" >&2
-# unzip -o "$ZIPFILE" 'action.sh' -d "$MODPATH" >&2
-
-
