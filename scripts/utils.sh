@@ -24,6 +24,7 @@ else
     BB="busybox"
 fi
 
+
 # 3. Logging Utilities
 # ------------------------------------------------------------------------------
 RED='\033[0;31m'
@@ -35,9 +36,9 @@ NC='\033[0m' # No Color
 # Function to write to log file without colors
 write_log() {
     # Get current timestamp
-    local timestamp=$($BB date "+%Y-%m-%d %H:%M:%S")
+    local timestamp="$($BB date "+%Y-%m-%d %H:%M:%S")"
     # Remove ANSI color codes for file log
-    local clean_msg=$(echo "$1" | $BB sed 's/\x1b\[[0-9;]*m//g')
+    local clean_msg="$(echo "$1" | $BB sed 's/\x1b\[[0-9;]*m//g')"
     echo "[$timestamp] $clean_msg" >> "$LOG_FILE"
 }
 
@@ -60,6 +61,8 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
     write_log "[ERROR] $1"
 }
+
+log_info "Busybox: $BB"
 
 # 4. Status Checks
 # ------------------------------------------------------------------------------
@@ -291,7 +294,7 @@ fix_network_permissions() {
     # _apt user needs to be in aid_inet (3003) to access network sockets
     
     # Dynamic detection of usermod path (adapted from linux-manager.sh)
-    local usermod_path=$($BB chroot "$chroot_dir" which usermod 2>/dev/null)
+    local usermod_path="$($BB chroot "$chroot_dir" which usermod 2>/dev/null)"
     # Validate path
     if [ -z "$usermod_path" ] || [ ! -x "$(echo "$usermod_path" | $BB sed "s#^/#$chroot_dir/#")" ]; then
         usermod_path="/sbin/usermod"
@@ -300,7 +303,7 @@ fix_network_permissions() {
         fi
     fi
     
-    local usermod_bin=$($BB basename "$usermod_path")
+    local usermod_bin="$($BB basename "$usermod_path")"
     local usermod_cmd="$usermod_path" # Use full path inside chroot if needed, but chroot usually needs relative to root or PATH
     
     # We will use 'chroot $chroot_dir usermod ...' so we need the path relative to chroot root?

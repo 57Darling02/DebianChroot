@@ -101,6 +101,7 @@ setup_background() {
     mount_fs "devpts" "$CHROOT_DIR/dev/pts" "devpts" "mode=620,ptmxmode=000"
     mount_fs "tmpfs" "$CHROOT_DIR/dev/shm" "tmpfs" "mode=1777"
     mount_fs "tmpfs" "$CHROOT_DIR/tmp" "tmpfs" "mode=1777"
+    mount_fs "tmpfs" "$CHROOT_DIR/run" "tmpfs" "mode=0755,nosuid,nodev"
 
     # 3. Android Specific Bind Mounts
     mount_fs "/system" "$CHROOT_DIR/system" "bind" "ro"
