@@ -1,0 +1,1 @@
+这个目录下的脚本是用来提供DebianChroot的内部软件，用于修复DebianChroot的一些问题。

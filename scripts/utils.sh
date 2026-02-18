@@ -81,7 +81,11 @@ check_container_status() {
 
     # Check runit process
     # We look for runsvdir running specifically for our service directory
-    if $BB ps -ef | $BB grep -v grep | $BB grep "runsvdir -P /etc/service" >/dev/null; then
+    # Updated to detect fake_systemd's runsvdir path
+    if $BB ps -ef | $BB grep -v grep | $BB grep "runsvdir -P .*fake_systemd" >/dev/null; then
+        is_running=1
+    elif $BB ps -ef | $BB grep -v grep | $BB grep "runsvdir -P /etc/service" >/dev/null; then
+        # Legacy fallback
         is_running=1
     fi
 

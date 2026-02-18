@@ -53,27 +53,76 @@ else
   fi
 fi
 
-ui_print "- [5] Installing Runit..."
-RUNIT_SRC="$TOOLS/setup/runit"
-RUNIT_DEST="$CHROOT_DIR/usr/bin"
+ui_print "- [5] Installing fake_systemd (Global Takeover)..."
 
-if [ ! -d "$RUNIT_DEST" ]; then
-  $BB mkdir -p "$RUNIT_DEST"
+FAKE_SYSTEMD_SRC="$TOOLS/setup/fake_systemd"
+ui_print "- Source: $FAKE_SYSTEMD_SRC"
+
+# Diagnostic check for source files
+if [ ! -f "$FAKE_SYSTEMD_SRC/install.sh" ]; then
+    ui_print "! Error: install.sh not found!"
+    ls -l "$FAKE_SYSTEMD_SRC" >&2
+elif [ ! -f "$FAKE_SYSTEMD_SRC/main" ]; then
+    ui_print "! Error: main script not found in source!"
+    ls -l "$FAKE_SYSTEMD_SRC" >&2
+else
+    # Execute installer
+    # We use sh explicitly
+    ui_print "- Running installer..."
+    
+    # Run install.sh and capture output to log
+    # Note: Magisk busybox sh might be limited, ensuring path is absolute
+    sh "$FAKE_SYSTEMD_SRC/install.sh" --destdir "$CHROOT_DIR" --prefix "/opt/fake_systemd" >&2
+    
+    if [ $? -ne 0 ]; then
+        ui_print "! Installation script returned error."
+    fi
+
+    # Verification
+    INSTALLED_BIN="$CHROOT_DIR/opt/fake_systemd/bin/fake_systemd"
+    if [ ! -f "$INSTALLED_BIN" ]; then
+        ui_print "! CRITICAL: fake_systemd binary missing after install!"
+        ui_print "! Attempting manual copy fallback..."
+        
+        # Manual Fallback
+        TARGET_DIR="$CHROOT_DIR/opt/fake_systemd"
+        $BB mkdir -p "$TARGET_DIR/bin"
+        $BB mkdir -p "$TARGET_DIR/lib"
+        $BB mkdir -p "$TARGET_DIR/etc/sv"
+        $BB mkdir -p "$TARGET_DIR/service"
+        $BB mkdir -p "$TARGET_DIR/run"
+        $BB mkdir -p "$TARGET_DIR/var/log"
+        
+        $BB cp "$FAKE_SYSTEMD_SRC/main" "$TARGET_DIR/bin/fake_systemd"
+        $BB chmod 755 "$TARGET_DIR/bin/fake_systemd"
+        if [ -d "$FAKE_SYSTEMD_SRC/lib" ]; then
+            $BB cp -r "$FAKE_SYSTEMD_SRC/lib/." "$TARGET_DIR/lib/"
+        fi
+        
+        if [ -f "$TARGET_DIR/bin/fake_systemd" ]; then
+            ui_print "- Manual copy successful."
+            # Also need to create symlinks manually if install.sh failed
+            SYSTEM_BIN="$CHROOT_DIR/usr/bin"
+            $BB mkdir -p "$SYSTEM_BIN"
+            $BB ln -sf "/opt/fake_systemd/bin/fake_systemd" "$SYSTEM_BIN/systemctl"
+        else
+            ui_print "! Manual copy FAILED."
+        fi
+    fi
+
+    # Post-install: Copy busybox if not present (install.sh tries but might fail if src missing)
+    if [ ! -f "$CHROOT_DIR/opt/fake_systemd/bin/busybox" ]; then
+        ui_print "- Bundling BusyBox into fake_systemd..."
+        $BB cp "$BB" "$CHROOT_DIR/opt/fake_systemd/bin/busybox"
+        $BB chmod 755 "$CHROOT_DIR/opt/fake_systemd/bin/busybox"
+    fi
+    
+    # Ensure legacy Runit directories exist (managed by fake_systemd now)
+    $BB mkdir -p "$CHROOT_DIR/etc/service"
+    $BB mkdir -p "$CHROOT_DIR/etc/runit"
+    
+    ui_print "- fake_systemd installed and configured for global takeover."
 fi
-
-for bin in chpst runsv runsvdir sv; do
-  if [ -f "$RUNIT_SRC/$bin" ]; then
-    ui_print "- Installing $bin..."
-    $BB cp "$RUNIT_SRC/$bin" "$RUNIT_DEST/"
-    $BB chmod 755 "$RUNIT_DEST/$bin"
-  else
-    ui_print "! Warning: $bin not found in $RUNIT_SRC"
-  fi
-done
-
-ui_print "- Creating Runit service directories..."
-$BB mkdir -p "$CHROOT_DIR/etc/service"
-$BB mkdir -p "$CHROOT_DIR/etc/runit"
 
 ui_print "- [6] Configuring Rootfs..."
 

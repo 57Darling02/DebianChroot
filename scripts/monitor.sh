@@ -26,13 +26,26 @@ while true; do
     check_container_status
     STATUS_CODE=$?
     
+    # Check fake_systemd Daemon Status (Only if container is running)
+    DAEMON_STATUS=""
+    if [ "$STATUS_CODE" -eq 0 ]; then
+         # Check if fake_systemd's runsvdir is running
+         if $BB ps -ef | $BB grep "runsvdir -P .*fake_systemd" | $BB grep -v grep >/dev/null; then
+             DAEMON_STATUS="✅"
+         else
+             DAEMON_STATUS="⚠️" # Daemon crashed or stopped
+             # Auto-restart logic?
+             # nohup chroot ... fake_systemd init &
+         fi
+    fi
+    
     # Get current time using busybox for consistency
     TIMESTAMP=$($BB date "+%H:%M:%S")
     
     # Determine status message with emojis
     case $STATUS_CODE in
         0)
-            STATUS_MSG="😋 运行中 | Running"
+            STATUS_MSG="😋 运行中 | Running $DAEMON_STATUS"
             ;;
         1)
             STATUS_MSG="🤔 仅挂载 | Mounted"

@@ -1,25 +1,32 @@
 # DebianChroot Magisk Module
 
-A Magisk module that deploys a full Debian Bookworm rootfs on your Android device, complete with Runit service management and a powerful helper tool (`lm`).
+A Magisk module that deploys a full Debian Bookworm rootfs on your Android device, with a **fake_systemd + Runit** init stack and a powerful helper tool (`lm`).
 
 ## Features
 
-- **Full Debian 12 (Bookworm)**: Runs a complete Debian environment alongside Android.
-- **Runit Service Management**: Integrated `runit` init system for managing background services.
-- **Seamless Integration**:
+- **Full Debian 12 (Bookworm)**: Runs Debian environment alongside Android.
+- **fake_systemd Systemd Compatibility**:
+  - Provides a high‑performance, lightweight Systemd‑compatible layer for non‑systemd environments (Android chroot/proot, Alpine, containers, etc.).
+  - Allows you to use familiar `systemctl` commands (`start`, `stop`, `status`, `enable`, `disable`, `reload`) inside the container.
+  - Transparently translates `systemctl` operations to underlying Runit (`sv`) actions.
+- **Runit Service Backend**:
+  - Uses `runit` as the actual process supervisor.
+  - Services live under `/opt/fake_systemd/etc/sv/` and are activated via `/opt/fake_systemd/service/`.
+- **Seamless Android Integration**:
   - Automatically mounts Android's `/dev`, `/proc`, `/sys`, `/system`, `/data`, and `/sdcard`.
-  - Fixes network permissions and Android-specific GIDs.
-- **Linux Manager (`lm`)**: A built-in helper tool to easily manage your container:
-  - **One-click Mirror Switch**: Switch to faster local mirrors (via LinuxMirrors).
-  - **SSH Server Setup**: Easily configure and start SSH service.
-  - **TMOE Integration**: Launch TMOE tools for advanced management.
-  - **Systemd Emulation**: Includes `servicectl` for systemd-like service control.
+  - Fixes network permissions and Android‑specific GIDs.
+- **Linux Manager (`lm`)**: A built‑in helper tool to easily manage your container:
+  - One‑click mirror switch (via LinuxMirrors).
+  - SSH server setup.
+  - TMOE integration.
+  - Service control helpers (including `servicectl`) built on top of fake_systemd/Runit.
 
 ## Installation
 
 1. Download the latest release zip file.
 2. Install the module via Magisk Manager or KernelSU.
 3. Reboot your device.
+
 
 ## Usage
 
@@ -36,7 +43,10 @@ You can access the Debian shell via a terminal emulator (like Termux) or ADB.
    ```bash
    /data/adb/modules/DebianChroot/scripts/start.sh
    ```
-   *(This script will start the container services if they aren't running, and then drop you into a shell.)*
+   This script will:
+   - Mount Android filesystems into the chroot.
+   - Ensure fake_systemd/Runit are ready.
+   - Drop you into a Debian shell.
 
 ### Managing the Container (`lm`)
 
@@ -51,60 +61,65 @@ From here you can:
 - Change software sources mirrors.
 - Configure SSH (port, password, pubkey).
 - Start TMOE tools.
-- Fix/Setup service controls.
+- Configure fake_systemd and service controls.
 
-### Service Management
+### Service Management with fake_systemd
 
-The container uses **Runit** as the init system. Services are located in `/etc/service`.
+Inside the Debian container, you can treat fake_systemd as a Systemd‑compatible layer and use standard `systemctl` commands:
 
-- **Check status**: `sv status <service_name>`
-- **Start/Stop**: `sv start <service_name>` / `sv stop <service_name>`
-
-You can also use the built-in `servicectl` wrapper (configured via `lm`) for a systemd-like experience:
 ```bash
-servicectl start <service>
-servicectl status <service>
+# List all running services
+systemctl status
+
+# Show status of a specific service
+systemctl status nginx
+
+# Start / stop / restart a service
+systemctl start nginx
+systemctl stop nginx
+systemctl restart nginx
+
+# Manage auto-start on boot
+systemctl enable nginx
+systemctl disable nginx
 ```
 
-#### Example: Setting up Nginx with Runit
+fake_systemd will:
+- Parse `.service` files under `/lib/systemd/system` and `/etc/systemd/system`.
+- Convert them into Runit service directories under `/opt/fake_systemd/etc/sv/`.
+- Manage active services via `/opt/fake_systemd/service/`.
 
-Here is how you can set up Nginx to run automatically with Runit, following the standard convention (`/etc/sv` -> `/etc/service`).
+For advanced users, you can still call Runit directly:
 
-1.  **Install Nginx**:
-    ```bash
-    apt update && apt install nginx
-    ```
+- Check status: `sv status <service_name>`
+- Start/Stop: `sv start <service_name>` / `sv stop <service_name>`
 
-2.  **Create the service directory in `/etc/sv`**:
-    ```bash
-    mkdir -p /etc/sv/nginx
-    ```
+### Example: Nginx with fake_systemd
 
-3.  **Create the run script**:
-    Create a file named `/etc/sv/nginx/run` with the following content:
-    ```bash
-    #!/bin/sh
-    # Nginx must run in foreground for runit to supervise it
-    exec nginx -g 'daemon off;'
-    ```
+1. Install Nginx inside the container:
+   ```bash
+   apt update && apt install nginx
+   ```
+2. Enable the service via fake_systemd:
+   ```bash
+   systemctl enable nginx
+   ```
+3. Edit the autogenerated Runit `run` script (if needed) to ensure foreground mode, e.g.:
+   ```bash
+   exec /usr/sbin/nginx -g 'daemon off;'
+   ```
+4. Start and check the service:
+   ```bash
+   systemctl start nginx
+   systemctl status nginx
+   ```
 
-4.  **Make it executable**:
-    ```bash
-    chmod +x /etc/sv/nginx/run
-    ```
+You can also continue to use `servicectl` (configured via `lm`) as a friendly wrapper:
 
-5.  **Enable the service (Symlink to `/etc/service`)**:
-    ```bash
-    ln -s /etc/sv/nginx /etc/service/nginx
-    ```
-
-6.  **Start the service**:
-    Runit will automatically discover and start the new service within a few seconds. You can verify it with:
-    ```bash
-    sv status nginx
-    # or
-    servicectl status nginx
-    ```
+```bash
+servicectl start nginx
+servicectl status nginx
+```
 
 ## Build & Release
 
@@ -115,11 +130,12 @@ This project includes a GitHub Actions workflow for automatic releases.
 3. Commit and push your changes to GitHub.
 4. The workflow will automatically build the zip and create a new Release.
 
-> **Note**: Ensure "Read and write permissions" are enabled in your repository settings (Settings -> Actions -> General -> Workflow permissions).
+> Ensure "Read and write permissions" are enabled in your repository settings (Settings → Actions → General → Workflow permissions).
 
 ## Credits
 
 - **Debian**: For the solid operating system.
 - **Magisk**: For the module system.
 - **BusyBox**: For essential utilities.
+- **fake_systemd**: For the Systemd‑compatible layer on top of Runit.
 - **TMOE/LinuxMirrors**: For the awesome helper scripts.

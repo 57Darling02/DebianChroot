@@ -18,8 +18,19 @@ log_info "Stopping container services..."
 
 # 1. Stop Services
 # ------------------------------------------------------------------------------
-# Try to stop runit gracefully if possible (optional, but good practice)
-# But since we are killing everything, we can skip to killing processes.
+# Try to stop runit gracefully if possible
+if [ -x "$CHROOT_DIR/opt/fake_systemd/bin/fake_systemd" ]; then
+    log_info "Stopping fake_systemd services..."
+    # We can add a 'shutdown' command to fake_systemd later, 
+    # for now we kill the runsvdir process which stops supervision.
+    # Ideally, we should stop all services first.
+    
+    # Optional: Stop all services (might be slow)
+    # $BB chroot "$CHROOT_DIR" /opt/fake_systemd/bin/fake_systemd stop all
+    
+    # Kill runsvdir to release locks
+    pkill -f "runsvdir -P .*fake_systemd"
+fi
 
 # 2. Kill Processes
 # ------------------------------------------------------------------------------

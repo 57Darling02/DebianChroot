@@ -1,0 +1,142 @@
+#!/bin/sh
+
+# fake_systemd - A lightweight, robust Systemd compatibility layer using Runit
+# Version: 4.0 (Self-contained Architecture)
+
+# 1. Resolve Script Path & Environment
+_resolve_path() {
+    local target="$1"
+    if command -v readlink >/dev/null 2>&1; then
+        readlink -f "$target"
+    else
+        echo "$target"
+    fi
+}
+REAL_PATH=$(_resolve_path "$0")
+ROOT_DIR=$(dirname "$REAL_PATH")
+
+# 2. Source Core Libraries
+# Adjust for bin/ layout if necessary
+if [ -d "$ROOT_DIR/lib" ]; then
+    LIB_DIR="$ROOT_DIR/lib"
+elif [ -d "$ROOT_DIR/../lib" ]; then
+    LIB_DIR="$ROOT_DIR/../lib"
+    ROOT_DIR=$(dirname "$ROOT_DIR")
+else
+    echo "[ERROR] 'lib' directory not found relative to $REAL_PATH"
+    exit 1
+fi
+
+. "$LIB_DIR/utils.sh"
+. "$LIB_DIR/core.sh"
+. "$LIB_DIR/service.sh"
+. "$LIB_DIR/deploy.sh"
+
+# 3. Command Dispatcher
+command="$1"
+shift
+
+case "$command" in
+    # --- Lifecycle Management ---
+    init)
+        # Explicitly initialize the daemon
+        log_info "Initializing fake_systemd daemon..."
+        if check_daemon; then
+            log_info "Daemon is already running."
+        else
+            start_daemon
+            log_success "Daemon started."
+        fi
+        ;;
+
+    deploy)
+        # Interactive deployment
+        deploy_systemctl_interactive
+        ;;
+
+    # --- Standard Systemctl Commands (Multi-service support) ---
+    start|stop|restart|reload|status)
+        # Ensure daemon is running before any operation
+        if ! check_daemon; then
+             log_warn "Daemon not running. Starting it now..."
+             start_daemon
+        fi
+
+        if [ -z "$1" ]; then
+            if [ "$command" = "status" ]; then
+                # List status of all active services
+                # Check if there are any services first
+                # We use 'ls' to check for files, suppressing errors
+                if [ -n "$(ls -A "$SV_ACTIVE" 2>/dev/null)" ]; then
+                    $SV_CMD status "$SV_ACTIVE"/* 2>/dev/null
+                else
+                    log_info "No active services found."
+                fi
+                exit 0
+            fi
+            log_error "Usage: systemctl $command <service>..."
+            exit 1
+        fi
+        for svc in "$@"; do
+            service_control "$command" "$svc"
+        done
+        ;;
+    enable)
+        if [ -z "$1" ]; then
+            log_error "Usage: systemctl enable <service>..."
+            exit 1
+        fi
+        for svc in "$@"; do
+            enable_service "$svc"
+        done
+        ;;
+    disable)
+        if [ -z "$1" ]; then
+            log_error "Usage: systemctl disable <service>..."
+            exit 1
+        fi
+        for svc in "$@"; do
+            disable_service "$svc"
+        done
+        ;;
+    
+    # --- Single Service Queries ---
+    is-active)
+        [ -z "$1" ] && exit 3
+        is_active "$1"
+        ;;
+    is-enabled)
+        [ -z "$1" ] && exit 1
+        is_enabled "$1"
+        ;;
+
+    # --- Compatibility Mocking layer ---
+    daemon-reload)
+        log_info "Mocking: daemon-reload (No-op in fake_systemd)"
+        exit 0
+        ;;
+    reset-failed|mask|unmask|preset|list-units|list-unit-files|show)
+        log_info "Mocking success for command: $command"
+        exit 0
+        ;;
+
+    # --- Internal/Utility Commands ---
+    init-service)
+        create_pkg "$1"
+        ;;
+    check-env)
+        echo "fake_systemd v4.0 (Self-contained)"
+        echo "Root: $ROOT_DIR"
+        echo "SV_REPO: $SV_REPO"
+        echo "SV_ACTIVE: $SV_ACTIVE"
+        echo "SV_CMD: $SV_CMD"
+        echo "Daemon PID: $(cat $PID_FILE 2>/dev/null || echo 'Not running')"
+        ;;
+    
+    *)
+        log_error "Unknown command: $command"
+        log_info "Usage: systemctl [start|stop|restart|status|enable|disable] <service>"
+        log_info "       fake_systemd [init|deploy|check-env]"
+        exit 1
+        ;;
+esac

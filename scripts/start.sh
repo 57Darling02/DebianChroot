@@ -136,22 +136,24 @@ setup_background() {
         log_success "Generated hosts file"
     fi
 
-    # 6. Start Runit (Init System)
-    if $BB ps -ef | $BB grep "runsvdir -P /etc/service" | $BB grep -v grep >/dev/null; then
-        log_info "Runit is already running."
+    # 6. Start Service Manager (fake_systemd Global Takeover)
+    if $BB ps -ef | $BB grep "runsvdir" | $BB grep -v grep >/dev/null; then
+        log_info "Service manager is already running."
     else
-        log_info "Starting Runit..."
-        # Start runsvdir in background within chroot
+        log_info "Starting Service Manager..."
         export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
         
-        $BB nohup $BB chroot "$CHROOT_DIR" /usr/bin/runsvdir -P /etc/service >/dev/null 2>&1 &
-        
-        sleep 1
-        if $BB ps -ef | $BB grep "runsvdir -P /etc/service" | $BB grep -v grep >/dev/null; then
-            log_success "Runit started successfully."
+        # Start fake_systemd daemon
+        # This starts /opt/fake_systemd/bin/runsvdir -> /opt/fake_systemd/service
+        if [ -x "$CHROOT_DIR/opt/fake_systemd/bin/fake_systemd" ]; then
+             log_info "Initializing fake_systemd..."
+             $BB nohup $BB chroot "$CHROOT_DIR" /opt/fake_systemd/bin/fake_systemd init >/dev/null 2>&1 &
         else
-            log_error "Failed to start Runit."
+             log_error "fake_systemd binary not found! Startup aborted."
+             return 1
         fi
+
+        sleep 1
     fi
 }
 
